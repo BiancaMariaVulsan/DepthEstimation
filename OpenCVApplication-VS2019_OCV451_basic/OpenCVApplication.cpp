@@ -9,8 +9,7 @@ using namespace std;
 
 // cu fereastra mai mare si mat<int> pt dim 5
 // compar disparitatea cu cati pixeli la dif de < 2
-
-// incerc pe alta imagine mai mica sau o redirectionez pe asta
+// incerc pe alta imagine mai mica sau o redimensionez pe asta
 
 Mat_<int> createCensusTransform(Mat_<uchar> image, int window_size)
 {
@@ -66,6 +65,35 @@ int hammingDistance(string left_block, string right_block)
     return dist;
 }
 
+void medianFilter(Mat_<uchar> src, int w)
+{
+    Mat_<uchar> dst = src.clone();
+
+    double t = (double)getTickCount();
+    for (int i = w / 2; i < src.rows - w / 2; i++)
+    {
+        for (int j = w / 2; j < src.cols - w / 2; j++)
+        {
+            std::vector<uchar> v;
+
+            for (int k = i - w / 2; k <= i + w / 2; k++)
+            {
+                for (int l = j - w / 2; l <= j + w / 2; l++)
+                {
+                    v.push_back(src(k, l));
+                }
+            }
+
+            std::sort(v.begin(), v.end());
+            dst.at<uchar>(i, j) = v[v.size() / 2];
+        }
+    }
+
+    imshow("disparity", dst);
+    waitKey(0);
+    imwrite("Images\\Results\\disparity_map_view_5_5_filtered.bmp", dst);
+}
+
 Mat_<uchar> computeDisparityMap(Mat_<int> left_census, Mat_<int> right_census, int block_size, int max_disp)
 {
     cout << "Computing disparity map" << endl;
@@ -88,7 +116,7 @@ Mat_<uchar> computeDisparityMap(Mat_<int> left_census, Mat_<int> right_census, i
             {
                 for (int j = 0; j < block_size; j++)
                 {
-                    left_block_string += to_string((int)(left_block(i, j)));
+                    left_block_string += bitset<32>(left_block(i, j)).to_string();
                 }
             }
 
@@ -105,7 +133,7 @@ Mat_<uchar> computeDisparityMap(Mat_<int> left_census, Mat_<int> right_census, i
                     {
                         for (int j = 0; j < right_block.cols; j++)
                         {
-                            right_block_string += to_string((int)(right_block(i, j)));
+                            right_block_string += bitset<32>(right_block(i, j)).to_string();
                         }
                     }
 
@@ -119,52 +147,62 @@ Mat_<uchar> computeDisparityMap(Mat_<int> left_census, Mat_<int> right_census, i
                 }
             }
 
-            disparity_map(row, col) = min_disp;
+            disparity_map(row, col) = min_disp * 16;
         }
     }
     return disparity_map;
 }
 
-int compareImages(Mat_<uchar> myImg, Mat_<uchar> original) {
+
+Mat_<uchar> computeDisparity(Mat_<uchar> left, Mat_<uchar> right, int block_size, int max_disp)
+{
+	Mat_<int> left_census = createCensusTransform(left, block_size);
+	Mat_<int> right_census = createCensusTransform(right, block_size);
+
+	Mat_<uchar> disparity_map = computeDisparityMap(left_census, right_census, block_size, max_disp);
+
+	return disparity_map;
+}
+
+
+int compareImages(const Mat_<uchar>& myImg, const Mat_<uchar>& original)
+{
     int count = 0;
-    for (int i = 0; i < min(myImg.rows, original.rows); i++) {
-        for (int j = 0; j < min(myImg.cols, original.cols); j++) {
-            if (abs(myImg(i, j) - original(i, j)) <= 2) {
+
+    for (int i = 0; i < min(myImg.rows, original.rows); i++)
+    {
+        for (int j = 0; j < min(myImg.cols, original.cols); j++)
+        {
+            if (abs(myImg(i, j) - original(i, j)) <= 2)
+            {
                 count++;
             }
         }
     }
-    return count / myImg.rows * myImg.cols; //procentage
+
+    return count * 100 / (myImg.rows * myImg.cols); // percentage
 }
 
 
 int main()
 {
-    //Mat_<uchar> img_left = imread("Images\\left.png", IMREAD_GRAYSCALE);
-    //Mat_<uchar> img_right = imread("Images\\right.png", IMREAD_GRAYSCALE);
-    Mat_<uchar> img_left = imread("Images\\view0.png", IMREAD_GRAYSCALE);
-    Mat_<uchar> img_right = imread("Images\\view1.png", IMREAD_GRAYSCALE);
-    Mat_<uchar> result = imread("Images\\disp1.png", IMREAD_GRAYSCALE);
-
-    //imshow("img_left", img_left);
-    //imshow("img_right", img_right);
-    //waitKey(0);
+    Mat_<uchar> img_left = imread("Images\\l.jpeg", IMREAD_GRAYSCALE);
+    Mat_<uchar> img_right = imread("Images\\r.jpeg", IMREAD_GRAYSCALE);
+    Mat_<uchar> result = imread("Images\\output.jpeg", IMREAD_GRAYSCALE);
 
     // Apply Census
     int window_size = 3;
     Mat_<int> left_census;
     Mat_<int> right_census;
-
     left_census = createCensusTransform(img_left, window_size);
     right_census = createCensusTransform(img_right, window_size);
 
     // Compute the disparity map based on the Hamming distance
-    Mat_<uchar> disparity_map = computeDisparityMap(left_census, right_census, 5, 128);
+    Mat_<uchar> disparity_map = computeDisparityMap(left_census, right_census, 3, 16);
 
-    imshow("disparity_map", disparity_map);
-    waitKey(0);
-    imwrite("Images\\Results\\disparity_map_view_3_5.bmp", disparity_map);
+    // Apply median filter to reduce the salt and papepr noise
+    medianFilter(disparity_map, 5);
 
-    cout << compareImages(disparity_map, result);
+    cout << "Similarity percent: " << compareImages(disparity_map, result);
     return 0;
 }
