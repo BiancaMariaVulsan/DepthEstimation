@@ -24,7 +24,8 @@ Mat_<int> createCensusTransform(Mat_<uchar> image, int window_size)
     copyMakeBorder(resized_image, padded_image, half_window_size, half_window_size, half_window_size, half_window_size, BORDER_REFLECT);
 
 
-    Mat_<int> census = Mat::zeros(image.size(), CV_32SC1);
+    Mat_<int> census(image.rows, image.cols);
+    census.setTo(0);
 
     for (int row = 0; row < image.rows; row++)
     {
@@ -38,7 +39,7 @@ Mat_<int> createCensusTransform(Mat_<uchar> image, int window_size)
                 for (int j = 0; j < window_size; j++) {
                     if (i != (window_size / 2) || j != (window_size / 2))
                     {
-                        binary_string.push_back(window(window_size/2, window_size/2) >= window(i,j));
+                        binary_string.push_back(window(window_size / 2, window_size / 2) >= window(i, j));
                     }
                 }
             }
@@ -65,12 +66,12 @@ int hammingDistance(string left_block, string right_block)
     return dist;
 }
 
-Mat_<uchar> computeDisparityMap(Mat_<uchar> left_census, Mat_<uchar> right_census, int block_size, int max_disp)
+Mat_<uchar> computeDisparityMap(Mat_<int> left_census, Mat_<int> right_census, int block_size, int max_disp)
 {
     cout << "Computing disparity map" << endl;
     int half_block_size = block_size / 2;
 
-    Mat_<uchar> padded_left_census, padded_right_census;
+    Mat_<int> padded_left_census, padded_right_census;
     copyMakeBorder(left_census, padded_left_census, half_block_size, half_block_size, half_block_size, half_block_size, BORDER_REFLECT);
     copyMakeBorder(right_census, padded_right_census, half_block_size, half_block_size, half_block_size, half_block_size, BORDER_REFLECT);
 
@@ -80,7 +81,7 @@ Mat_<uchar> computeDisparityMap(Mat_<uchar> left_census, Mat_<uchar> right_censu
     {
         for (int col = 0; col < left_census.cols; col++)
         {
-            Mat_<uchar> left_block = padded_left_census(Rect(col, row, block_size, block_size));
+            Mat_<int> left_block = padded_left_census(Rect(col, row, block_size, block_size));
 
             string left_block_string = "";
             for (int i = 0; i < block_size; i++)
@@ -97,7 +98,7 @@ Mat_<uchar> computeDisparityMap(Mat_<uchar> left_census, Mat_<uchar> right_censu
             for (int disp = 0; disp < max_disp; disp++) {
                 if (col - disp >= 0)
                 {
-                    Mat_<uchar> right_block = padded_right_census(Rect(col - disp, row, block_size, block_size));
+                    Mat_<int> right_block = padded_right_census(Rect(col - disp, row, block_size, block_size));
 
                     string right_block_string = "";
                     for (int i = 0; i < right_block.rows; i++)
@@ -144,7 +145,7 @@ int main()
     Mat_<uchar> img_left = imread("Images\\view0.png", IMREAD_GRAYSCALE);
     Mat_<uchar> img_right = imread("Images\\view1.png", IMREAD_GRAYSCALE);
     Mat_<uchar> result = imread("Images\\disp1.png", IMREAD_GRAYSCALE);
-    
+
     //imshow("img_left", img_left);
     //imshow("img_right", img_right);
     //waitKey(0);
@@ -156,16 +157,14 @@ int main()
 
     left_census = createCensusTransform(img_left, window_size);
     right_census = createCensusTransform(img_right, window_size);
-    imwrite("Images\\Census_left_view_3.png", left_census);
-    imwrite("Images\\Census_right_view_3.png", right_census);
 
     // Compute the disparity map based on the Hamming distance
-    Mat_<uchar> disparity_map = computeDisparityMap(left_census, right_census, 3, 128);
- 
+    Mat_<uchar> disparity_map = computeDisparityMap(left_census, right_census, 5, 128);
+
     imshow("disparity_map", disparity_map);
     waitKey(0);
-    imwrite("Images\\disparity_map_view_3.bmp", disparity_map);
+    imwrite("Images\\Results\\disparity_map_view_3_5.bmp", disparity_map);
 
     cout << compareImages(disparity_map, result);
-	return 0;
+    return 0;
 }
